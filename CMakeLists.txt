@@ -21,6 +21,7 @@ project(afm-main C)
 cmake_minimum_required(VERSION 2.8)
 
 include(GNUInstallDirs)
+include(CTest)
 
 set(PROJECT_NAME "AFM Main")
 set(PROJECT_PRETTY_NAME "Application Framework Main")

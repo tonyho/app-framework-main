@@ -88,6 +88,7 @@ add_library(wgtpkg STATIC
 	wgtpkg-install.c
 	wgtpkg-permissions.c
 	wgtpkg-uninstall.c
+	wgtpkg-unit.c
 	wgtpkg-workdir.c
 	wgtpkg-xmlsec.c
 	wgtpkg-zip.c
@@ -96,11 +97,13 @@ add_library(wgtpkg STATIC
 add_library(utils STATIC
 	utils-dir.c
 	verbose.c
+	mustach.c
 	)
 
 add_library(wgt STATIC
 	wgt-config.c
 	wgt-info.c
+	wgt-names.c
 	wgt.c
 	)
 
@@ -187,3 +190,9 @@ if(EXTRA2_FOUND)
 	endif()
 
 endif(EXTRA2_FOUND)
+
+###########################################################################
+# the tests
+
+add_subdirectory(tests)
+
