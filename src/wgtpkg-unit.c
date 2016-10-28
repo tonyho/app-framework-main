@@ -37,28 +37,28 @@ static const char default_unit[] = "\
 \n\
 [Unit]\n\
 Description={{description}}\n\
-{{#required-binding}}\
-Requires={{required-binding-name}}\n\
-After={{required-binding-name}}\n\
-{{/required-binding}}\
+{{#urn:AGL:required-binding}}\
+{{#param}}\
+Requires={{name}}\n\
+After={{name}}\n\
+{{/param}}\
+{{/urn:AGL:required-binding}}\
 \n\
 [Service]\n\
 ";
 
 static const char str_description[] = "description";
 static const char str_id[] = "id";
+static const char str_name[] = "name";
+static const char str_param[] = "param";
+static const char str_required[] = "required";
 static const char str_required_binding[] = "required-binding";
-static const char str_required_binding_name[] = "required-binding-name";
 static const char str_version[] = "version";
 
 struct _m_ {
 	const struct wgt_desc *desc;
 	const struct wgt_desc_feature *feature;
 	const struct wgt_desc_param *param;
-	enum {
-		_m_root,
-		_m_required_binding,
-	} state;
 };
 
 static int _m_write_escaped(const char *string, FILE *file)
@@ -94,77 +94,51 @@ static int _m_write(const char *string, FILE *file, int escape)
 	return escape ? _m_write_escaped(string, file) : _m_write_unescaped(string, file);
 }
 
-static int _m_enter_param(struct _m_ *m, const char *param)
+static int _m_write_bool(int value, FILE *file, int escape)
 {
-	m->param = m->feature ? m->feature->params : NULL;
-	while (m->param) {
-		if (!param || !strcmp(param, m->param->name))
-			return 1;
-		m->param = m->param->next;
-	}
-	return 0;
+	return _m_write(value ? "true" : "false", file, escape);
 }
 
-static int _m_next_param(struct _m_ *m, const char *param)
+static const struct wgt_desc_feature *seek_feature(const struct wgt_desc_feature *feature, const char *name)
 {
-	m->param = m->param ? m->param->next : NULL;
-	while (m->param) {
-		if (!param || !strcmp(param, m->param->name))
-			return 1;
-		m->param = m->param->next;
-	}
-	return 0;
+	while (feature && strcmp(feature->name, name))
+		feature = feature->next;
+	return feature;
 }
 
-static int _m_enter_feature(struct _m_ *m, const char *feature)
+static int _m_feature(struct _m_ *m, const struct wgt_desc_feature *feature, const char *name)
 {
-	m->param = NULL;
-	m->feature = m->desc->features;
-	while (m->feature) {
-		if (!feature || !strcmp(feature, m->feature->name))
-			return 1;
-		m->feature = m->feature->next;
-	}
-	return 0;
-}
-
-static int _m_next_feature(struct _m_ *m, const char *feature)
-{
-	m->param = NULL;
-	m->feature = m->feature ? m->feature->next : NULL;
-	while (m->feature) {
-		if (!feature || !strcmp(feature, m->feature->name))
-			return 1;
-		m->feature = m->feature->next;
-	}
-	return 0;
-}
-
-static int _m_enter_both(struct _m_ *m, const char *feature, const char *param)
-{
-	if (!_m_enter_feature(m, feature))
+	feature = seek_feature(feature, name);
+	if (!feature)
 		return 0;
-	while(!_m_enter_param(m, param))
-		if (!_m_next_feature(m, feature))
-			return 0;
+
+	m->feature = feature;
+	m->param = NULL;
 	return 1;
 }
 
-static int _m_next_both(struct _m_ *m, const char *feature, const char *param)
+static int _m_param(struct _m_ *m, const struct wgt_desc_param *param, const char *name)
 {
-	if(_m_next_param(m, param))
-		return 1;
-	do {
-		if (!_m_next_feature(m, feature))
-			return 0;
-	} while(!_m_enter_param(m, param));
-	return 1;
+	const struct wgt_desc_feature *feature = m->feature;
+	while (feature) {
+		while (param) {
+			if (!strcmp(param->name, name) || !strcmp(str_param, name)) {
+				m->feature = feature;
+				m->param = param;
+				return 1;
+			}
+			param = param->next;
+		}
+		feature = seek_feature(feature->next, feature->name);
+		if (feature)
+			param = feature->params;
+	}
+	return 0;
 }
 
 static int _m_start(void *closure)
 {
 	struct _m_ *m = closure;
-	m->state = _m_root;
 	m->feature = NULL;
 	m->param = NULL;
 	return 0;
@@ -177,14 +151,17 @@ static int _m_put(void *closure, const char *name, int escape, FILE *file)
 	if (!strcmp(name, str_id))
 		return _m_write(m->desc->id, file, escape);
 
-	if (!strcmp(name, str_version))
-		return _m_write(m->desc->version, file, escape);
-
 	if (!strcmp(name, str_description))
 		return _m_write(m->desc->description, file, escape);
 
-	if (!strcmp(name, str_required_binding_name) && m->state == _m_required_binding)
+	if (!strcmp(name, str_name) && m->param)
 		return _m_write(m->param->name, file, escape);
+
+	if (!strcmp(name, str_required) && m->feature)
+		return _m_write_bool(m->feature->required, file, escape);
+
+	if (!strcmp(name, str_version))
+		return _m_write(m->desc->version, file, escape);
 
 	return 0;
 }
@@ -193,41 +170,31 @@ static int _m_enter(void *closure, const char *name)
 {
 	struct _m_ *m = closure;
 
-	if (m->state != _m_root)
-		return 0;
-
-	if (!strcmp(name, str_required_binding)) {
-		if (!_m_enter_both(m, feature_required_binding, NULL))
-			return 0;
-		m->state = _m_required_binding;
-		return 1;
-	}
-
+	if (!m->feature)
+		return _m_feature(m, m->desc->features, name);
+	if (!m->param)
+		return _m_param(m, m->feature->params, name);
 	return 0;
 }
 
 static int _m_next(void *closure)
 {
 	struct _m_ *m = closure;
-	switch (m->state) {
-	case _m_required_binding:
-		return _m_next_both(m, feature_required_binding, NULL);
-	default:
-		break;
-	}
+	if (m->param)
+		return _m_param(m, m->param->next, m->param->name);
+	if (m->feature)
+		return _m_feature(m, m->feature->next, m->feature->name);
 	return 0;
 }
 
 static int _m_leave(void *closure)
 {
 	struct _m_ *m = closure;
-	switch (m->state) {
-	case _m_required_binding:
-		m->state = _m_root;
-		break;
-	default:
-		break;
-	}
+
+	if (m->param)
+		m->param = NULL;
+	else if (m->feature)
+		m->feature = NULL;
 	return 0;
 }
 

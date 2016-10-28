@@ -129,7 +129,7 @@ Known types for the type of content are (for version 2.x, blowfish):
 
 
 AGL features
-------------
+============
 
 The AGL framework uses the feature tag for specifying security and binding
 requirement of the widget.
@@ -139,13 +139,34 @@ features.
 
 The features planned to be implemented are described below.
 
-### feature name="urn:AGL:required-binding"
+Feature urn:AGL:required-binding
+--------------------------------
 
 List of the bindings required by the widget.
 
 Each required binding must be explicited using a <param> entry.
 
-#### param name=[required binding name]
+Example:
+```xml
+<feature name="urn:AGL:required-binding">
+  <param name="urn:AGL:permission:A" value="required" />
+  <param name="urn:AGL:permission:B" value="optional" />
+</feature>
+```
+
+This will be *virtually* translated for mustaches to the JSON
+```json
+"required-binding": {
+  "param": [
+      { "name": "urn:AGL:permission:A", "value": "required", "required": true },
+      { "name": "urn:AGL:permission:A", "value": "optional", "optional": true }
+    ],
+  "urn:AGL:permission:A": { "name": "urn:AGL:permission:A", "value": "required", "required": true },
+  "urn:AGL:permission:B": { "name": "urn:AGL:permission:B", "value": "optional", "optional": true }
+}
+```
+
+### param name=[required binding name]
 
 The value is either:
 
@@ -153,13 +174,14 @@ The value is either:
 isn't required (required="false") and in that case it is optional.
 - optional: the binding is optional
 
-### feature name="urn:AGL:required-permission"
+Feature urn:AGL:required-permission
+-----------------------------------
 
 List of the permissions required by the widget.
 
 Each required permission must be explicited using a <param> entry.
 
-#### param name=[required permission name]
+### param name=[required permission name]
 
 The value is either:
 
@@ -167,32 +189,33 @@ The value is either:
 isn't required (required="false") and in that case it is optional.
 - optional: the permission is optional
 
-### feature name="urn:AGL:provided-binding"
+Feature urn:AGL:provided-binding
+--------------------------------
 
 Use this feature for each provided binding of the widget.
 The parameters are:
 
-#### param name="name"
+### param name="name"
 
 REQUIRED
 
 The value is the string that must match the binding prefix.
 It must be unique.
 
-#### param name="src"
+### param name="src"
 
 REQUIRED
 
 The value is the path of the shared library for the binding.
 
-#### param name="type"
+### param name="type"
 
 REQUIRED
 
 Currently it must be ***application/vnd.agl.binding.v1***.
 
 
-#### param name="scope"
+### param name="scope"
 
 REQUIRED
 
@@ -202,17 +225,18 @@ The value indicate the availability of the binidng:
 - public: available to allowed clients as a remote service (requires permission+)
 - inline: available to allowed clients inside their binding (unsafe, requires permission+++)
 
-#### param name="needed-binding"
+### param name="needed-binding"
 
 OPTIONAL
 
 The value is a space separated list of binding's names that the binding needs.
 
-### feature name="urn:AGL:defined-permission"
+Feature urn:AGL:defined-permission
+----------------------------------
 
 Each required permission must be explicited using a <param> entry.
 
-#### param name=[defined permission name]
+### param name=[defined permission name]
 
 The value is the level of the defined permission.
 Standard levels are: 
