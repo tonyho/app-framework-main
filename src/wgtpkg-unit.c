@@ -50,15 +50,18 @@ After={{name}}\n\
 static const char str_description[] = "description";
 static const char str_id[] = "id";
 static const char str_name[] = "name";
+static const char str_optional[] = "optional";
 static const char str_param[] = "param";
 static const char str_required[] = "required";
-static const char str_required_binding[] = "required-binding";
 static const char str_version[] = "version";
 
 struct _m_ {
 	const struct wgt_desc *desc;
 	const struct wgt_desc_feature *feature;
 	const struct wgt_desc_param *param;
+	int in_feature_value;
+	int any_param;
+	int in_param_value;
 };
 
 static int _m_write_escaped(const char *string, FILE *file)
@@ -122,7 +125,7 @@ static int _m_param(struct _m_ *m, const struct wgt_desc_param *param, const cha
 	const struct wgt_desc_feature *feature = m->feature;
 	while (feature) {
 		while (param) {
-			if (!strcmp(param->name, name) || !strcmp(str_param, name)) {
+			if (m->any_param || !strcmp(param->name, name)) {
 				m->feature = feature;
 				m->param = param;
 				return 1;
@@ -141,6 +144,9 @@ static int _m_start(void *closure)
 	struct _m_ *m = closure;
 	m->feature = NULL;
 	m->param = NULL;
+	m->in_feature_value = 0;
+	m->any_param = 0;
+	m->in_param_value = 0;
 	return 0;
 }
 
@@ -172,16 +178,34 @@ static int _m_enter(void *closure, const char *name)
 
 	if (!m->feature)
 		return _m_feature(m, m->desc->features, name);
-	if (!m->param)
+	if (!m->param && !m->in_feature_value) {
+		if (!strcmp(name, m->feature->required ? str_required : str_optional)) {
+			m->in_feature_value = 1;
+			return 1;
+		}
+	}
+	if (!m->param) {
+		m->any_param = !strcmp(str_param, name);
 		return _m_param(m, m->feature->params, name);
+	}
+	if (!m->in_param_value) {
+		if (!strcmp(m->param->value, name)) {
+			m->in_param_value = 1;
+			return 1;
+		}
+	}
 	return 0;
 }
 
 static int _m_next(void *closure)
 {
 	struct _m_ *m = closure;
+	if (m->in_param_value)
+		return 0;
 	if (m->param)
 		return _m_param(m, m->param->next, m->param->name);
+	if (m->in_feature_value)
+		return 0;
 	if (m->feature)
 		return _m_feature(m, m->feature->next, m->feature->name);
 	return 0;
@@ -191,8 +215,13 @@ static int _m_leave(void *closure)
 {
 	struct _m_ *m = closure;
 
-	if (m->param)
+	if (m->in_param_value)
+		m->in_param_value = 0;
+	else if (m->param) {
 		m->param = NULL;
+		m->any_param = 0;
+	} else if (m->in_feature_value)
+		m->in_feature_value = 0;
 	else if (m->feature)
 		m->feature = NULL;
 	return 0;
